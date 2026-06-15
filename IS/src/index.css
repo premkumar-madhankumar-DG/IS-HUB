@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.container-custom {
+  max-width: 1280px;
+  margin: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.team-swiper {
+  padding-bottom: 60px;
+}
+
+.team-swiper .swiper-pagination {
+  bottom: 0 !important;
+}

@@ -11,7 +11,7 @@ const employees = [
     name: "Asher Enose",
     role: "Project Manager",
     exp: "12 yrs with BW / 15 yrs",
-    image: "../assets/team/asher-enose.png",
+    image: "/team/asher-enose.png",
   },
   {
     id: 3,

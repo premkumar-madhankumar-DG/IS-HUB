@@ -39,10 +39,7 @@ function Header() {
           className="cursor-pointer flex items-center gap-3"
         >
           <img src={logo} alt="BW Design Group" className="h-7 w-auto" />
-          <span className="hidden sm:flex items-baseline gap-1 border-l border-ink/15 pl-3 ml-0.5">
-            <span className="font-display font-semibold text-base leading-none">IS</span>
-            <span className="eyebrow text-ink-muted leading-none">/ Hub</span>
-          </span>
+          
         </Link>
 
         <nav className="hidden md:flex gap-9">

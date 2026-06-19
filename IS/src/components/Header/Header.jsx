@@ -2,12 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-scroll";
 import { HiMenuAlt3, HiX } from "react-icons/hi";
-import {
-  FaMoon,
-  FaSun,
-  FaChevronDown,
-} from "react-icons/fa";
-import logo from "../../../public/logo.png";
+import { FaMoon, FaSun, FaChevronDown } from "react-icons/fa";
 
 const links = [
   {
@@ -54,20 +49,21 @@ function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("theme") === "dark"
-  );
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 24);
-    };
+    const handleScroll = () => setScrolled(window.scrollY > 24);
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
 
-    return () =>
-      window.removeEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    setDarkMode(savedTheme === "dark");
   }, []);
 
   useEffect(() => {
@@ -84,8 +80,8 @@ function Header() {
     <header
       className={`fixed top-0 w-full z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-md"
-          : "bg-white/50 dark:bg-slate-900/50 backdrop-blur-md"
+          ? "bg-paper/90 backdrop-blur-lg shadow-[0_1px_0_0_rgba(11,13,16,0.08)]"
+          : "bg-paper/40 backdrop-blur-md"
       }`}
     >
       <div className="container-custom flex justify-between items-center py-3.5">
@@ -96,21 +92,7 @@ function Header() {
           duration={500}
           className="cursor-pointer flex items-center gap-3"
         >
-          <img
-            src={logo}
-            alt="Company Logo"
-            className="h-10 w-auto"
-          />
-
-          <span className="hidden sm:flex items-baseline gap-1 border-l border-slate-300 dark:border-slate-700 pl-3">
-            <span className="font-semibold text-base dark:text-white">
-              IS
-            </span>
-
-            <span className="text-slate-500 dark:text-slate-400">
-              / Hub
-            </span>
-          </span>
+          <img src="/logo.png" alt="BW Design Group" className="h-7 w-auto" />
         </Link>
 
         {/* Desktop Navigation */}
@@ -121,34 +103,21 @@ function Header() {
                 <div
                   key={link.label}
                   className="relative"
-                  onMouseEnter={() =>
-                    setShowDropdown(true)
-                  }
-                  onMouseLeave={() =>
-                    setShowDropdown(false)
-                  }
+                  onMouseEnter={() => setShowDropdown(true)}
+                  onMouseLeave={() => setShowDropdown(false)}
                 >
-                  <button className="flex items-center gap-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">
+                  <button className="flex items-center gap-2 eyebrow text-ink/70 hover:text-coral transition-colors">
                     {link.label}
-                    <FaChevronDown size={12} />
+                    <FaChevronDown size={10} />
                   </button>
 
                   <AnimatePresence>
                     {showDropdown && (
                       <motion.div
-                        initial={{
-                          opacity: 0,
-                          y: 8,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                        }}
-                        exit={{
-                          opacity: 0,
-                          y: 8,
-                        }}
-                        className="absolute top-10 left-0 w-60 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        className="absolute top-10 left-0 w-60 bg-paper rounded-xl shadow-xl border border-ink/10 py-2"
                       >
                         {link.items.map((item) => (
                           <a
@@ -156,7 +125,7 @@ function Header() {
                             href={item.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block px-4 py-3 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            className="block px-4 py-3 eyebrow text-ink/70 hover:bg-ink/5 hover:text-coral transition-colors"
                           >
                             {item.label}
                           </a>
@@ -175,7 +144,7 @@ function Header() {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="cursor-pointer text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                  className="eyebrow cursor-pointer text-ink/70 hover:text-coral transition-colors"
                 >
                   {link.label}
                 </a>
@@ -190,8 +159,8 @@ function Header() {
                 duration={500}
                 offset={-72}
                 spy
-                activeClass="text-blue-600"
-                className="cursor-pointer text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                activeClass="text-coral"
+                className="eyebrow cursor-pointer text-ink/70 hover:text-coral transition-colors relative"
               >
                 {link.label}
               </Link>
@@ -199,28 +168,27 @@ function Header() {
           })}
         </nav>
 
-        {/* Theme Toggle */}
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="hidden md:flex items-center justify-center w-11 h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:scale-105 transition"
-        >
-          {darkMode ? (
-            <FaSun
-              size={18}
-              className="text-yellow-400"
-            />
-          ) : (
-            <FaMoon
-              size={18}
-              className="text-slate-700"
-            />
-          )}
-        </button>
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-4">
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="flex items-center justify-center w-10 h-10 rounded-full border border-ink/10 bg-paper hover:scale-105 transition"
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? (
+              <FaSun size={16} className="text-coral" />
+            ) : (
+              <FaMoon size={16} className="text-ink/70" />
+            )}
+          </button>
+
+        </div>
 
         {/* Mobile Menu Button */}
         <button
-          className="md:hidden text-2xl text-slate-800 dark:text-white"
+          className="md:hidden text-2xl text-ink"
           onClick={() => setOpen(!open)}
+          aria-label="Toggle menu"
         >
           {open ? <HiX /> : <HiMenuAlt3 />}
         </button>
@@ -230,19 +198,11 @@ function Header() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{
-              height: 0,
-              opacity: 0,
-            }}
-            animate={{
-              height: "auto",
-              opacity: 1,
-            }}
-            exit={{
-              height: 0,
-              opacity: 0,
-            }}
-            className="md:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="md:hidden bg-paper border-t border-ink/10 overflow-hidden"
           >
             {links.map((item) => (
               <div key={item.label}>
@@ -251,7 +211,7 @@ function Header() {
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block px-6 py-4 border-b border-slate-200 dark:border-slate-800"
+                    className="block px-6 py-4 border-b border-ink/10 eyebrow text-ink/80"
                   >
                     {item.label}
                   </a>
@@ -264,7 +224,7 @@ function Header() {
                     duration={500}
                     offset={-64}
                     onClick={() => setOpen(false)}
-                    className="block px-6 py-4 border-b border-slate-200 dark:border-slate-800"
+                    className="block px-6 py-4 border-b border-ink/10 eyebrow text-ink/80"
                   >
                     {item.label}
                   </Link>
@@ -272,8 +232,8 @@ function Header() {
 
                 {item.type === "dropdown" && (
                   <>
-                    <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 font-medium">
-                      Links
+                    <div className="px-6 py-4 border-b border-ink/10 eyebrow text-ink/80 font-medium">
+                      {item.label}
                     </div>
 
                     {item.items.map((subItem) => (
@@ -282,7 +242,7 @@ function Header() {
                         href={subItem.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block pl-10 pr-6 py-3 text-sm border-b border-slate-100 dark:border-slate-800"
+                        className="block pl-10 pr-6 py-3 text-sm border-b border-ink/5 eyebrow text-ink/70"
                       >
                         {subItem.label}
                       </a>
@@ -292,24 +252,21 @@ function Header() {
               </div>
             ))}
 
-            <div className="px-6 py-4">
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="flex items-center gap-3"
-              >
-                {darkMode ? (
-                  <FaSun className="text-yellow-400" />
-                ) : (
-                  <FaMoon />
-                )}
 
-                <span>
-                  {darkMode
-                    ? "Light Mode"
-                    : "Dark Mode"}
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="flex items-center gap-3 px-6 py-4"
+            >
+              {darkMode ? (
+                <FaSun className="text-coral" />
+              ) : (
+                <FaMoon className="text-ink/70" />
+              )}
+
+              <span className="eyebrow text-ink/80">
+                {darkMode ? "Light Mode" : "Dark Mode"}
+              </span>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

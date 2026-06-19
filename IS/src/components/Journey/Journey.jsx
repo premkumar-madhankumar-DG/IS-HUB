@@ -1,4 +1,4 @@
-import { motion, AnimatePresence, useScroll, useMotionValue, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useMotionValue } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import { Rocket, Users, Globe, Award, TrendingUp, Zap, X, CheckCircle2, ArrowUpRight } from "lucide-react";
 
@@ -74,46 +74,68 @@ const STEPS = [
 
 const N = STEPS.length;
 
-/* ─── Desktop SVG constants ─────────────────────────────── */
-const TW      = 170;  // tread width
-const TH      = 100;  // riser height
-const PAD_L   = 50;
-const PAD_TOP = 295;  // must be > CH + DOT_R + 28 = ~241 so top card never clips
-const CW      = 188;  // card width
-const CH      = 200;  // card height
-const DOT_R   = 13;
-const SVG_W   = PAD_L + N * TW + 160;
-const SVG_H   = PAD_TOP + N * TH + 70;
+const CW            = 188;
+const CH            = 200;
+const DOT_R         = 13;
+const PAD_L         = 60;
+const ROAD_W_INNER  = 700;
+const STEP_GAP      = 230;
+const ROAD_TOP_PAD  = 340;
+const ROAD_BOTTOM_PAD = 150;
+const SVG_W = PAD_L * 2 + ROAD_W_INNER;
+const SVG_H = ROAD_TOP_PAD + (N - 1) * STEP_GAP + ROAD_BOTTOM_PAD;
 
-const treadY = i => PAD_TOP + (N - 1 - i) * TH;
-const treadX = i => PAD_L  + i * TW;
+const X_FRACTIONS = [0.20, 0.64, 0.30, 0.72, 0.26, 0.60];
 
-/* ─── Stair path: draws top-right → bottom-left ─────────── */
-function stairPath() {
-  const startX = treadX(N - 1) + TW;
-  const startY = treadY(N - 1);
-  let d = `M ${startX} ${startY}`;
-  for (let i = N - 1; i >= 0; i--) {
-    d += ` L ${treadX(i)} ${treadY(i)}`;
-    d += ` L ${treadX(i)} ${treadY(i) + TH}`;
+const roadX = i => PAD_L + X_FRACTIONS[i] * ROAD_W_INNER;
+const roadY = i => ROAD_TOP_PAD + i * STEP_GAP;
+
+function smoothPath(points) {
+  if (points.length < 2) return "";
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
   }
   return d;
 }
-const PATH = stairPath();
 
-/* ─── When each step should be revealed ─────────────────── */
-// step N-1 (2025, top-right) reveals first at scroll ~0.05
-// step 0   (2015, bottom-left) reveals last at scroll ~0.80
-function revealAt(i) {
-  const stepsFromTop = (N - 1) - i;
-  return 0.05 + (stepsFromTop / (N - 1)) * 0.75;
+const ROAD_POINTS = STEPS.map((_, i) => ({ x: roadX(i), y: roadY(i) }));
+const ROAD_PATH = smoothPath(ROAD_POINTS);
+
+const START_PT = { x: roadX(0), y: roadY(0) };
+const START_STUB_END = { x: START_PT.x - 90, y: START_PT.y + 70 };
+const END_PT = { x: roadX(N - 1), y: roadY(N - 1) };
+const END_STUB_END = { x: END_PT.x + 110, y: END_PT.y - 10 };
+
+function perpCap(from, to, half = 15) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len, py = dx / len;
+  return {
+    a: { x: to.x + px * half, y: to.y + py * half },
+    b: { x: to.x - px * half, y: to.y - py * half },
+  };
+}
+const START_CAP = perpCap(START_PT, START_STUB_END);
+const END_CAP = perpCap(END_PT, END_STUB_END);
+
+function revealAtFor(i) {
+  return 0.12 + (i / (N - 1)) * 0.75;
 }
 
 /* ─── Desktop Card ───────────────────────────────────────── */
 function DesktopCard({ item, index, visible, onSelect }) {
   const { Icon } = item;
-  const cx = treadX(index) + TW / 2;
-  const cy = treadY(index);
+  const cx = roadX(index);
+  const cy = roadY(index);
   const leftPct  = (cx / SVG_W) * 100;
   const topPct   = ((cy - CH - DOT_R - 28) / SVG_H) * 100;
 
@@ -131,50 +153,23 @@ function DesktopCard({ item, index, visible, onSelect }) {
       onKeyDown={(e) => {
         if (visible && (e.key === "Enter" || e.key === " ")) onSelect(item);
       }}
-      style={{
-        position:"absolute",
-        left:`${leftPct}%`,
-        top:`${topPct}%`,
-        transform:"translateX(-50%)",
-        width:`${CW}px`,
-        background:"#fff",
-        border:"1px solid #E5E7EB",
-        borderRadius:"13px",
-        boxShadow:"0 4px 20px rgba(17,24,39,0.09)",
-        overflow:"hidden",
-        zIndex:10,
-        pointerEvents: visible ? "auto" : "none",
-        cursor: visible ? "pointer" : "default",
-      }}
+      className={`journey-desktop-card${visible ? " journey-desktop-card--visible" : ""}`}
+      style={{ left:`${leftPct}%`, top:`${topPct}%` }}
     >
-      <div style={{ height:"3px", background:"linear-gradient(90deg,#F26A21,rgba(242,106,33,0.15))" }} />
-      <div style={{ padding:"14px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"9px", marginBottom:"9px" }}>
-          <div style={{
-            width:"32px", height:"32px", borderRadius:"8px",
-            background:"#FFF4EE", border:"1px solid rgba(242,106,33,0.18)",
-            display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-          }}>
+      <div className="journey-card-top-bar" />
+      <div className="journey-card-body">
+        <div className="journey-card-header">
+          <div className="journey-card-icon-wrap">
             <Icon size={16} color="#F26A21" strokeWidth={1.8} />
           </div>
           <div>
-            <div style={{ fontSize:"8px", fontWeight:700, color:"#F26A21", letterSpacing:"0.14em", fontFamily:"monospace" }}>
-              {item.year}
-            </div>
-            <div style={{ fontSize:"12px", fontWeight:700, color:"#111827", lineHeight:1.2, letterSpacing:"-0.01em" }}>
-              {item.title}
-            </div>
+            <div className="journey-card-year">{item.year}</div>
+            <div className="journey-card-title">{item.title}</div>
           </div>
         </div>
-        <div style={{ height:"1px", background:"#F3F4F6", marginBottom:"9px" }} />
-        <p style={{ fontSize:"11px", color:"#6B7280", lineHeight:1.65, margin:"0 0 8px" }}>
-          {item.desc}
-        </p>
-        <div style={{
-          display:"flex", alignItems:"center", gap:"3px",
-          fontSize:"9px", fontWeight:700, color:"#F26A21",
-          fontFamily:"monospace", letterSpacing:"0.04em",
-        }}>
+        <div className="journey-card-divider" />
+        <p className="journey-card-desc">{item.desc}</p>
+        <div className="journey-card-cta">
           VIEW DETAILS <ArrowUpRight size={10} strokeWidth={2.2} />
         </div>
       </div>
@@ -195,22 +190,14 @@ function MobileCard({ item, index, onSelect }) {
       whileInView={{ opacity:1, x:0 }}
       viewport={{ once:true, margin:"-40px" }}
       transition={{ duration:0.5, delay: index * 0.08, ease:[0.22,1,0.36,1] }}
-      style={{ display:"flex", gap:"16px", position:"relative" }}
+      className="journey-mobile-item"
     >
       {/* Left spine + dot */}
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0, width:"36px" }}>
-        <div style={{
-          width:"32px", height:"32px", borderRadius:"50%",
-          background:"#F26A21", border:"3px solid #fff",
-          boxShadow:"0 0 0 2px #F26A21",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          flexShrink:0, zIndex:1,
-        }}>
-          <span style={{ fontSize:"9px", fontWeight:800, color:"#fff", fontFamily:"monospace" }}>{item.step}</span>
+      <div className="journey-mobile-spine">
+        <div className="journey-mobile-dot">
+          <span className="journey-mobile-dot-label">{item.step}</span>
         </div>
-        {!isLast && (
-          <div style={{ width:"2px", flex:1, background:"linear-gradient(to bottom, #F26A21, #E5E7EB)", marginTop:"4px", minHeight:"32px" }} />
-        )}
+        {!isLast && <div className="journey-mobile-line" />}
       </div>
 
       {/* Card */}
@@ -222,42 +209,22 @@ function MobileCard({ item, index, onSelect }) {
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") onSelect(item);
         }}
-        style={{
-          flex:1, background:"#fff", border:"1px solid #E5E7EB",
-          borderRadius:"13px", overflow:"hidden",
-          boxShadow:"0 2px 12px rgba(17,24,39,0.07)",
-          marginBottom: isLast ? 0 : "16px",
-          cursor:"pointer",
-        }}
+        className={`journey-mobile-card${isLast ? " journey-mobile-card--last" : ""}`}
       >
-        <div style={{ height:"3px", background:"linear-gradient(90deg,#F26A21,rgba(242,106,33,0.15))" }} />
-        <div style={{ padding:"14px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"8px" }}>
-            <div style={{
-              width:"34px", height:"34px", borderRadius:"9px",
-              background:"#FFF4EE", border:"1px solid rgba(242,106,33,0.18)",
-              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-            }}>
+        <div className="journey-mobile-card-bar" />
+        <div className="journey-mobile-card-body">
+          <div className="journey-card-header">
+            <div className="journey-mobile-icon-wrap">
               <Icon size={16} color="#F26A21" strokeWidth={1.8} />
             </div>
             <div>
-              <div style={{ fontSize:"9px", fontWeight:700, color:"#F26A21", letterSpacing:"0.14em", fontFamily:"monospace" }}>
-                {item.year}
-              </div>
-              <div style={{ fontSize:"14px", fontWeight:700, color:"#111827", lineHeight:1.2 }}>
-                {item.title}
-              </div>
+              <div className="journey-card-year">{item.year}</div>
+              <div className="journey-mobile-card-title">{item.title}</div>
             </div>
           </div>
-          <div style={{ height:"1px", background:"#F3F4F6", marginBottom:"8px" }} />
-          <p style={{ fontSize:"13px", color:"#6B7280", lineHeight:1.65, margin:"0 0 8px" }}>
-            {item.desc}
-          </p>
-          <div style={{
-            display:"flex", alignItems:"center", gap:"3px",
-            fontSize:"10px", fontWeight:700, color:"#F26A21",
-            fontFamily:"monospace", letterSpacing:"0.04em",
-          }}>
+          <div className="journey-card-divider" />
+          <p className="journey-mobile-card-desc">{item.desc}</p>
+          <div className="journey-card-cta journey-card-cta--mobile">
             VIEW DETAILS <ArrowUpRight size={11} strokeWidth={2.2} />
           </div>
         </div>
@@ -276,74 +243,40 @@ function ModalCard({ item, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 16, scale: 0.96 }}
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-      style={{
-        position:"relative",
-        width:"100%",
-        maxWidth:"560px",
-        maxHeight:"85vh",
-        overflowY:"auto",
-        background:"#fff",
-        borderRadius:"20px",
-        boxShadow:"0 30px 80px rgba(17,24,39,0.35)",
-        border:"1px solid #E5E7EB",
-      }}
+      className="journey-modal-card"
     >
-      <div style={{ height:"4px", background:"linear-gradient(90deg,#F26A21,rgba(242,106,33,0.15))" }} />
+      <div className="journey-modal-top-bar" />
 
-      <button
-        onClick={onClose}
-        aria-label="Close"
-        style={{
-          position:"absolute", top:"16px", right:"16px",
-          width:"32px", height:"32px", borderRadius:"50%",
-          border:"1px solid #E5E7EB", background:"#fff",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          cursor:"pointer", color:"#6B7280", zIndex:2,
-        }}
-      >
+      <button onClick={onClose} aria-label="Close" className="journey-modal-close">
         <X size={16} />
       </button>
 
-      <div style={{ position:"relative", padding:"36px 40px 40px", overflow:"hidden" }}>
-        <div style={{
-          position:"absolute", top:"-6px", right:"30px",
-          fontSize:"96px", fontWeight:800, color:"#F8F9FA",
-          fontFamily:"monospace", lineHeight:1, zIndex:0, userSelect:"none",
-        }}>
-          {item.step}
-        </div>
+      <div className="journey-modal-body">
+        <div className="journey-modal-step-bg">{item.step}</div>
 
-        <div style={{ position:"relative", zIndex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"8px" }}>
-            <div style={{
-              width:"56px", height:"56px", borderRadius:"14px",
-              background:"#FFF4EE", border:"1px solid rgba(242,106,33,0.2)",
-              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-            }}>
+        <div className="journey-modal-content">
+          <div className="journey-modal-header">
+            <div className="journey-modal-icon-wrap">
               <Icon size={26} color="#F26A21" strokeWidth={1.8} />
             </div>
             <div>
-              <div style={{ fontSize:"11px", fontWeight:700, color:"#F26A21", letterSpacing:"0.16em", fontFamily:"monospace", marginBottom:"4px" }}>
+              <div className="journey-modal-eyebrow">
                 {item.year} · STEP {item.step}
               </div>
-              <h3 style={{ fontSize:"24px", fontWeight:800, color:"#111827", margin:0, letterSpacing:"-0.02em", lineHeight:1.2 }}>
-                {item.title}
-              </h3>
+              <h3 className="journey-modal-title">{item.title}</h3>
             </div>
           </div>
 
-          <div style={{ height:"1px", background:"#F3F4F6", margin:"22px 0 20px" }} />
+          <div className="journey-modal-divider" />
 
-          <p style={{ fontSize:"15px", color:"#374151", lineHeight:1.75, margin:"0 0 22px" }}>
-            {item.details || item.desc}
-          </p>
+          <p className="journey-modal-desc">{item.details || item.desc}</p>
 
           {item.highlights && item.highlights.length > 0 && (
-            <div style={{ display:"flex", flexDirection:"column", gap:"11px" }}>
+            <div className="journey-modal-highlights">
               {item.highlights.map((h, i) => (
-                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-                  <CheckCircle2 size={16} color="#F26A21" strokeWidth={2} style={{ flexShrink:0, marginTop:"2px" }} />
-                  <span style={{ fontSize:"14px", color:"#4B5563", lineHeight:1.6 }}>{h}</span>
+                <div key={i} className="journey-modal-highlight-row">
+                  <CheckCircle2 size={16} color="#F26A21" strokeWidth={2} className="journey-modal-check" />
+                  <span className="journey-modal-highlight-text">{h}</span>
                 </div>
               ))}
             </div>
@@ -364,18 +297,7 @@ function JourneyDetailModal({ item, onClose }) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
           onClick={onClose}
-          style={{
-            position:"fixed",
-            inset:0,
-            background:"rgba(17,24,39,0.55)",
-            backdropFilter:"blur(4px)",
-            WebkitBackdropFilter:"blur(4px)",
-            zIndex:1000,
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            padding:"24px",
-          }}
+          className="journey-modal-overlay"
         >
           <ModalCard item={item} onClose={onClose} />
         </motion.div>
@@ -387,6 +309,7 @@ function JourneyDetailModal({ item, onClose }) {
 /* ─── Main ───────────────────────────────────────────────── */
 export default function Journey() {
   const sectionRef = useRef(null);
+  const roadRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const [selected, setSelected] = useState(null);
 
@@ -397,14 +320,24 @@ export default function Journey() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Lock background scroll + allow Escape to close while the detail modal is open
+  const [scrollDir, setScrollDir] = useState("down");
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y > lastY + 1) setScrollDir("down");
+      else if (y < lastY - 1) setScrollDir("up");
+      lastY = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   useEffect(() => {
     if (!selected) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key === "Escape") setSelected(null);
-    };
+    const onKey = (e) => { if (e.key === "Escape") setSelected(null); };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prevOverflow;
@@ -412,11 +345,9 @@ export default function Journey() {
     };
   }, [selected]);
 
-  // Scroll progress scoped to this section
-  // offset: section enters at top of viewport → section leaves at bottom
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start 0.9", "end 0.6"],   // generous range so all cards show well before end
+    offset: ["start 0.3", "end 0.6"],
   });
 
   const pathLen = useMotionValue(0);
@@ -429,35 +360,26 @@ export default function Journey() {
   const [visible, setVisible] = useState(Array(N).fill(false));
   useEffect(() => {
     return pathLen.on("change", v => {
-      setVisible(STEPS.map((_, i) => v >= revealAt(i)));
+      setVisible(STEPS.map((_, i) => v >= revealAtFor(i, scrollDir)));
     });
-  }, [pathLen]);
+  }, [pathLen, scrollDir]);
 
-  // Per-tread orange highlight driven by scroll
-  const treadProgress = STEPS.map((_, i) => {
-    const stepsFromTop = (N - 1) - i;
-    const segLen = TW + TH;
-    const totalLen = N * segLen;
-    const s = (stepsFromTop * segLen) / totalLen;
-    const e = ((stepsFromTop + 1) * segLen) / totalLen;
-    // map those fractions through revealAt range
-    const scrollStart = 0.05 + s * 0.75;
-    const scrollEnd   = 0.05 + e * 0.75;
-    return useTransform(scrollYProgress, [scrollStart, scrollEnd], [0, 1]);
-  });
+  const markerX = useMotionValue(ROAD_POINTS[0].x);
+  const markerY = useMotionValue(ROAD_POINTS[0].y);
+  useEffect(() => {
+    const el = roadRef.current;
+    if (!el) return;
+    const total = el.getTotalLength();
+    return pathLen.on("change", v => {
+      const pt = el.getPointAtLength(total * v);
+      markerX.set(pt.x);
+      markerY.set(pt.y);
+    });
+  }, [pathLen, markerX, markerY, isMobile]);
 
   return (
-    <section
-      ref={sectionRef}
-      id="journey"
-      style={{
-        background:"#FFFFFF",
-        padding:"72px 0 64px",
-        borderTop:"1px solid #E5E7EB",
-        borderBottom:"1px solid #E5E7EB",
-      }}
-    >
-      <div style={{ maxWidth:"1400px", margin:"0 auto", padding:"0 32px" }}>
+    <section ref={sectionRef} id="journey" className="journey-section">
+      <div className="journey-container">
 
         {/* Header */}
         <motion.div
@@ -465,94 +387,146 @@ export default function Journey() {
           whileInView={{ opacity:1, y:0 }}
           viewport={{ once:true }}
           transition={{ duration:0.6 }}
-          style={{ textAlign:"center", marginBottom:"32px" }}
+          className="journey-header"
         >
-          <p style={{
-            fontSize:"11px", fontWeight:700, letterSpacing:"0.18em",
-            color:"#F26A21", textTransform:"uppercase", fontFamily:"monospace", marginBottom:"10px",
-          }}>Since 2015 · Step by Step</p>
-          <h2 style={{
-            fontSize:"clamp(28px,4.5vw,48px)", fontWeight:800, color:"#111827",
-            margin:"0 0 12px", letterSpacing:"-0.03em", lineHeight:1.08,
-          }}>
+          <p className="journey-eyebrow">Since 2015 · Mile by Mile</p>
+          <h2 className="journey-heading">
             Every milestone,{" "}
-            <span style={{ color:"#F26A21", fontStyle:"italic" }}>a step higher.</span>
+            <span className="journey-heading-accent">further down the road.</span>
           </h2>
-          <p style={{ fontSize:"15px", color:"#6B7280", maxWidth:"400px", margin:"0 auto", lineHeight:1.65 }}>
-            A decade of climbing — each year a new stair carved into the story of BW Design Group.
+          <p className="journey-subheading">
+            A decade in motion — each year another stretch of road for BW Design Group.
           </p>
         </motion.div>
 
         {/* ── MOBILE: vertical timeline ── */}
         {isMobile && (
-          <div style={{ padding:"8px 4px" }}>
+          <div className="journey-mobile-list">
             {STEPS.slice().reverse().map((item, i) => (
               <MobileCard key={item.year} item={item} index={i} onSelect={setSelected} />
             ))}
           </div>
         )}
 
-        {/* ── DESKTOP: SVG staircase ── */}
+        {/* ── DESKTOP: SVG winding road ── */}
         {!isMobile && (
-          <div style={{ position:"relative", width:"100%", overflowX:"auto", overflowY:"visible" }}>
-            <div style={{ position:"relative", width:`${SVG_W}px`, margin:"0 auto", minWidth:"600px" }}>
+          <div className="journey-road-wrap">
+            <div className="journey-road-inner" style={{ width:`${SVG_W}px` }}>
 
               {/* HTML cards layer */}
-              <div style={{ position:"absolute", inset:0, pointerEvents:"none", overflow:"visible" }}>
+              <div className="journey-cards-layer">
                 {STEPS.map((item, i) => (
                   <DesktopCard key={item.year} item={item} index={i} visible={visible[i]} onSelect={setSelected} />
                 ))}
               </div>
 
               {/* SVG */}
-              <svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`} style={{ display:"block", overflow:"visible" }}>
+              <svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="journey-svg">
                 <defs>
-                  <pattern id="jg" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <pattern id="jg" width="70" height="70" patternUnits="userSpaceOnUse">
                     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(242,106,33,0.04)" strokeWidth="0.8"/>
                   </pattern>
                 </defs>
                 <rect width={SVG_W} height={SVG_H} fill="url(#jg)" />
 
-                {/* Stair fill */}
+                {/* Road base */}
                 <path
-                  d={PATH + ` L ${PAD_L} ${PAD_TOP + N*TH} Z`}
-                  fill="rgba(242,106,33,0.035)" stroke="none"
+                  ref={roadRef}
+                  d={ROAD_PATH}
+                  fill="none"
+                  stroke="#E2E4E8"
+                  strokeWidth="46"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="journey-road-base"
                 />
 
-                {/* Main outline — scroll-driven draw */}
+                {/* Orange traveled overlay */}
                 <motion.path
-                  d={PATH} fill="none"
-                  stroke="#111827" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round"
+                  d={ROAD_PATH}
+                  fill="none"
+                  stroke="#F26A21"
+                  strokeWidth="46"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   style={{ pathLength: pathLen }}
                 />
 
-                {/* Orange tread highlights */}
-                {STEPS.map((_, i) => (
-                  <motion.line key={i}
-                    x1={treadX(i)}    y1={treadY(i)}
-                    x2={treadX(i)+TW} y2={treadY(i)}
-                    stroke="#F26A21" strokeWidth="4" strokeLinecap="round"
-                    style={{ pathLength: treadProgress[i] }}
-                  />
-                ))}
+                {/* Lane markings */}
+                <path
+                  d={ROAD_PATH}
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="4"
+                  strokeDasharray="16 16"
+                  strokeLinecap="round"
+                />
 
-                {/* Dots on treads */}
+                {/* Live position marker */}
+                <motion.circle
+                  cx={markerX} cy={markerY} r={9}
+                  fill="#fff" stroke="#F26A21" strokeWidth="4"
+                  className="journey-road-marker"
+                />
+
+                {/* Start stub */}
+                <motion.line
+                  initial={{ opacity:0 }} whileInView={{ opacity:1 }} viewport={{ once:true }} transition={{ duration:0.6, delay:0.2 }}
+                  x1={START_PT.x} y1={START_PT.y} x2={START_STUB_END.x} y2={START_STUB_END.y}
+                  stroke="#E2E4E8" strokeWidth="46" strokeLinecap="round"
+                />
+                <motion.line
+                  initial={{ opacity:0 }} whileInView={{ opacity:1 }} viewport={{ once:true }} transition={{ duration:0.6, delay:0.2 }}
+                  x1={START_CAP.a.x} y1={START_CAP.a.y} x2={START_CAP.b.x} y2={START_CAP.b.y}
+                  stroke="#fff" strokeWidth="3"
+                />
+                <motion.text
+                  initial={{ opacity:0 }} whileInView={{ opacity:1 }} viewport={{ once:true }} transition={{ duration:0.6, delay:0.3 }}
+                  x={START_STUB_END.x} y={START_STUB_END.y + 34}
+                  textAnchor="middle" fontSize="9" fontWeight="700" fill="#9CA3AF" fontFamily="monospace" letterSpacing="1.5"
+                >START</motion.text>
+
+                {/* End stub */}
+                <line
+                  x1={END_PT.x} y1={END_PT.y} x2={END_STUB_END.x} y2={END_STUB_END.y}
+                  stroke="#E2E4E8" strokeWidth="46" strokeLinecap="round"
+                />
+                <motion.line
+                  x1={END_PT.x} y1={END_PT.y} x2={END_STUB_END.x} y2={END_STUB_END.y}
+                  stroke="#F26A21" strokeWidth="46" strokeLinecap="round"
+                  initial={{ pathLength: 0 }}
+                  animate={visible[N-1] ? { pathLength: 1 } : { pathLength: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                />
+                <line
+                  x1={END_CAP.a.x} y1={END_CAP.a.y} x2={END_CAP.b.x} y2={END_CAP.b.y}
+                  stroke="#fff" strokeWidth="3"
+                />
+                <motion.path
+                  d={`M ${END_STUB_END.x+8} ${END_STUB_END.y-16} L ${END_STUB_END.x+34} ${END_STUB_END.y-4} L ${END_STUB_END.x+8} ${END_STUB_END.y+8} Z`}
+                  fill="#F26A21"
+                  initial={{ opacity:0, scale:0.5 }}
+                  animate={visible[N-1] ? { opacity:1, scale:1 } : { opacity:0, scale:0.5 }}
+                  transition={{ type:"spring", stiffness:240, delay:0.3 }}
+                  style={{ transformOrigin:`${END_STUB_END.x+8}px ${END_STUB_END.y-4}px` }}
+                />
+
+                {/* Dots on the road */}
                 {STEPS.map((item, i) => (
                   <motion.g key={item.year}
                     initial={{ scale:0, opacity:0 }}
                     animate={visible[i] ? { scale:1, opacity:1 } : { scale:0, opacity:0 }}
                     transition={{ type:"spring", stiffness:300, damping:22 }}
-                    style={{ transformOrigin:`${treadX(i)+TW/2}px ${treadY(i)}px` }}
+                    style={{ transformOrigin:`${roadX(i)}px ${roadY(i)}px` }}
                   >
-                    <circle cx={treadX(i)+TW/2} cy={treadY(i)} r={DOT_R} fill="#F26A21" stroke="#fff" strokeWidth="3"/>
+                    <circle cx={roadX(i)} cy={roadY(i)} r={DOT_R} fill="#F26A21" stroke="#fff" strokeWidth="3"/>
                     <motion.circle
-                      cx={treadX(i)+TW/2} cy={treadY(i)} r={DOT_R}
+                      cx={roadX(i)} cy={roadY(i)} r={DOT_R}
                       fill="none" stroke="#F26A21" strokeWidth="1.5"
                       animate={{ r:[DOT_R, DOT_R+9], opacity:[0.6,0] }}
                       transition={{ duration:1.8, repeat:Infinity, delay:i*0.18 }}
                     />
-                    <text x={treadX(i)+TW/2} y={treadY(i)+4}
+                    <text x={roadX(i)} y={roadY(i)+4}
                       textAnchor="middle" fontSize="8" fontWeight="800" fill="#fff" fontFamily="monospace"
                     >{item.step}</text>
                   </motion.g>
@@ -560,9 +534,9 @@ export default function Journey() {
 
                 {/* Connector lines card → dot */}
                 {STEPS.map((item, i) => {
-                  const cx = treadX(i)+TW/2;
-                  const dotTop = treadY(i) - DOT_R;
-                  const cardBottomY = ((treadY(i) - CH - DOT_R - 28) / SVG_H) * SVG_H + CH;
+                  const cx = roadX(i);
+                  const dotTop = roadY(i) - DOT_R;
+                  const cardBottomY = roadY(i) - DOT_R - 28;
                   return (
                     <motion.line key={item.year}
                       x1={cx} y1={dotTop} x2={cx} y2={cardBottomY}
@@ -575,10 +549,10 @@ export default function Journey() {
                   );
                 })}
 
-                {/* Year labels on treads */}
+                {/* Year labels */}
                 {STEPS.map((item, i) => (
                   <motion.text key={item.year}
-                    x={treadX(i)+TW/2} y={treadY(i)+28}
+                    x={roadX(i)} y={roadY(i) + 32}
                     textAnchor="middle" fontSize="9" fontWeight="700"
                     fill="#9CA3AF" fontFamily="monospace" letterSpacing="1"
                     initial={{ opacity:0 }}
@@ -586,39 +560,6 @@ export default function Journey() {
                     transition={{ delay:0.1 }}
                   >{item.year}</motion.text>
                 ))}
-
-                {/* Ground line */}
-                <line
-                  x1={PAD_L-20} y1={PAD_TOP + N*TH}
-                  x2={PAD_L + N*TW + 30} y2={PAD_TOP + N*TH}
-                  stroke="#E5E7EB" strokeWidth="1.5" strokeDasharray="6 4"
-                />
-                <text x={PAD_L-18} y={PAD_TOP + N*TH - 8}
-                  fontSize="8" fill="#D1D5DB" fontFamily="monospace" fontWeight="700"
-                >START</text>
-
-                {/* Summit flag */}
-                <motion.g
-                  initial={{ opacity:0, scale:0.5 }}
-                  animate={visible[N-1] ? { opacity:1, scale:1 } : { opacity:0, scale:0.5 }}
-                  transition={{ type:"spring", stiffness:220, delay:0.25 }}
-                  style={{ transformOrigin:`${treadX(N-1)+TW}px ${treadY(N-1)}px` }}
-                >
-                  <line
-                    x1={treadX(N-1)+TW} y1={treadY(N-1)}
-                    x2={treadX(N-1)+TW} y2={treadY(N-1)-48}
-                    stroke="#111827" strokeWidth="2.5" strokeLinecap="round"
-                  />
-                  <path
-                    d={`M ${treadX(N-1)+TW} ${treadY(N-1)-48} L ${treadX(N-1)+TW+36} ${treadY(N-1)-37} L ${treadX(N-1)+TW} ${treadY(N-1)-26} Z`}
-                    fill="#F26A21"
-                  />
-                  <rect x={treadX(N-1)+TW+44} y={treadY(N-1)-41} width={84} height={24} rx="6" fill="#111827"/>
-                  <text x={treadX(N-1)+TW+86} y={treadY(N-1)-24}
-                    textAnchor="middle" fontSize="9" fontWeight="800"
-                    fill="#fff" fontFamily="monospace" letterSpacing="0.5"
-                  >SUMMIT 2025</text>
-                </motion.g>
               </svg>
             </div>
           </div>
@@ -630,21 +571,16 @@ export default function Journey() {
           whileInView={{ opacity:1 }}
           viewport={{ once:true }}
           transition={{ duration:0.6, delay:0.2 }}
-          style={{
-            marginTop:"40px",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:"16px",
-          }}
+          className="journey-footer"
         >
-          <div style={{ flex:1, maxWidth:"120px", height:"1px", background:"#E5E7EB" }} />
-          <span style={{ fontSize:"11px", color:"#9CA3AF", letterSpacing:"0.12em", fontFamily:"monospace" }}>
-            THE JOURNEY CONTINUES
-          </span>
+          <div className="journey-footer-line" />
+          <span className="journey-footer-label">THE JOURNEY CONTINUES</span>
           <motion.span
             animate={{ x:[0,6,0] }}
             transition={{ duration:1.3, repeat:Infinity }}
-            style={{ color:"#F26A21", fontSize:"16px" }}
+            className="journey-footer-arrow"
           >→</motion.span>
-          <div style={{ flex:1, maxWidth:"120px", height:"1px", background:"#E5E7EB" }} />
+          <div className="journey-footer-line" />
         </motion.div>
       </div>
 

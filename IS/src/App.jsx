@@ -5,6 +5,7 @@ import Hero from "./components/Hero/Hero";
 import Stats from "./components/Stats/Stats";
 import Team from "./components/Team/Team";
 import Journey from "./components/Journey/Journey";
+import Training from "./components/Training/Training";
 import SkillsTools from "./components/Skills/Skillstools";
 import Footer from "./components/Footer/Footer";
 
@@ -18,8 +19,10 @@ function App() {
     <Stats />
     <Team />
     <Journey />
+    <Training />
     <SkillsTools />
     <Footer />
+    
     </>
   )
 }

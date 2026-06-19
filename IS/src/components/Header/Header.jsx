@@ -26,6 +26,12 @@ const links = [
     to: "journey",
   },
   {
+    label: "Training",
+    type: "scroll",
+    to: "training",
+  },
+
+  {
     label: "Links",
     type: "dropdown",
     items: [
